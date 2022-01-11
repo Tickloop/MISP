@@ -1,6 +1,6 @@
 # Error detector
 from .utils import semantic_unit_segment, np
-
+import torch
 
 class ErrorDetector:
     """
@@ -109,3 +109,58 @@ class ErrorDetectorBayesDropout(ErrorDetector):
 
         return err_su_pointer_pairs
 
+class ErrorDetectorFNN(ErrorDetector):
+    """
+    This is a FeedForward NN based error detector.
+    """
+    def __init__(self, mi):
+        ErrorDetector.__init__(self)
+        self.indexer = mi.get_indexer()
+        self.model = mi.get_model()
+
+        self.input_size = len(self.indexer) + 1
+    
+    def detection(self, tag_seq, start_pos=0, bool_return_first=False, *args, **kwargs):
+        if start_pos >= len(tag_seq):
+            return []
+        
+        semantic_units, pointers = semantic_unit_segment(tag_seq)
+        err_su_pointer_pairs = []
+        for semantic_unit, pointer in zip(semantic_units, pointers):
+            if pointer < start_pos:
+                continue
+
+            # get the probability of the semantic unit
+            prob = semantic_unit[-2]
+
+            # get the type of tag
+            tag_name = semantic_unit[0]
+
+            # create the input for the model
+            import numpy as np
+            
+            # making the input for this semantic unit
+            x = np.zeros((1, self.input_size))
+            col_idx = self.indexer[tag_name]
+            
+            # the last column will be probability
+            x[0, -1] = prob
+            
+            # one hot encoding of the tag name type of semantic unit
+            x[0, col_idx] = 1
+
+            # convert to tensor for use
+            x = torch.Tensor(x)
+
+            # find the prediction
+            y = self.model(x).item()
+
+            # print(f"Semantic Unit: {tag_name} => Prob: {y}")
+
+            # if %prob of semantic unit being correct is less than 0.5, then ask question, else don't
+            if y < 0.5:
+                err_su_pointer_pairs.append((semantic_unit, pointer))
+                if bool_return_first:
+                    return err_su_pointer_pairs
+
+        return err_su_pointer_pairs

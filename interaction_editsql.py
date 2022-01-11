@@ -32,6 +32,8 @@ from EditSQL.error_detector import ErrorDetectorProbability, ErrorDetectorBayesD
 from EditSQL.environment import ErrorEvaluator, UserSim, RealUser, GoldUserSim
 from EditSQL.agent import Agent
 from EditSQL.question_gen import QuestionGenerator
+from MISP_SQL.error_detector import ErrorDetectorFNN
+from MISP_SQL.ed_model.fnnv2 import ModelIndexer, MLP
 from MISP_SQL.utils import SELECT_AGG_v2, WHERE_COL, WHERE_OP, WHERE_ROOT_TERM, GROUP_COL, HAV_AGG_v2, \
     HAV_OP_v2, HAV_ROOT_TERM_v2, ORDER_AGG_v2, ORDER_DESC_ASC, ORDER_LIMIT, IUEN_v2, OUTSIDE
 from user_study_utils import *
@@ -192,7 +194,8 @@ def interpret_args():
                              '(1) prob=x for using policy probability threshold;'
                              '(2) stddev=x for using Bayesian dropout threshold (need to set --dropout and --passes);'
                              '(3) any for querying about every policy action;'
-                             '(4) perfect for using a simulated perfect detector.')
+                             '(4) perfect for using a simulated perfect detector.'
+                             '(5) fnn for feed forward NN based error detector')
     parser.add_argument('--dropout', type=float, default=0.0,
                         help='[INTERACTION] Dropout rate for Bayesian dropout-based uncertainty analysis. '
                              'This does NOT change the dropout rate in training.')
@@ -2199,6 +2202,11 @@ if __name__ == "__main__":
     elif params.err_detector == "perfect":
         error_detector = ErrorDetectorSim()
         print("Error Detector: using a simulated perfect detector.")
+    elif params.err_detector == "fnn":
+        # load the model and indexer from trained model
+        mi = pickle.load(open("./MISP_SQL/ed_model/model_with_indexer_v4.pkl", "rb"))
+        error_detector = ErrorDetectorFNN(mi)
+        print("Error Detector: using a FNN based error detector")
     else:
         raise Exception("Invalid error detector setup %s!" % params.err_detector)
 
